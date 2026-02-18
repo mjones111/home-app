@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 async function fetchUrlContent(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
@@ -51,6 +47,7 @@ The JSON must have exactly these fields:
   Only include sections that are present in the source. Use null if there is nothing extra.`;
 
 async function callClaude(content: Anthropic.MessageParam["content"]): Promise<string> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 8096,

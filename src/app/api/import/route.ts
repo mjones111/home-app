@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 async function fetchUrlContent(url: string): Promise<string> {
@@ -46,14 +45,33 @@ The JSON must have exactly these fields:
   "Substitutions:" — ingredient substitution notes. Put each ingredient on its own line in the format "Ingredient: description". Do not join them with pipes or put multiple on one line.
   Only include sections that are present in the source. Use null if there is nothing extra.`;
 
-async function callClaude(content: Anthropic.MessageParam["content"]): Promise<string> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8096,
-    messages: [{ role: "user", content }],
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
+
+async function callClaude(content: ContentBlock[]): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey!,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 8096,
+      messages: [{ role: "user", content }],
+    }),
   });
-  return message.content[0].type === "text" ? message.content[0].text : "";
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.content?.[0]?.text ?? "";
 }
 
 function parseRecipeJson(raw: string) {
@@ -74,16 +92,11 @@ export async function POST(req: NextRequest) {
     let sourceUrl: string | null = null;
 
     if (pdf) {
-      // PDF path: send as a document block
       raw = await callClaude([
-        {
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: pdf },
-        } as Anthropic.DocumentBlockParam,
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf } },
         { type: "text", text: EXTRACTION_PROMPT },
       ]);
     } else {
-      // Text / URL path
       let recipeText = (input as string).trim();
       if (isUrl(recipeText)) {
         sourceUrl = recipeText;

@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ id: data.id });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Something went wrong";
+    const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

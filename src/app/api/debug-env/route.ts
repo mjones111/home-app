@@ -1,21 +1,24 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "NOT SET";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "NOT SET";
 
-  let supabaseResult = "untested";
-  try {
-    const supabase = getSupabaseAdmin();
-    const { error } = await supabase.from("recipes").select("id").limit(1);
-    supabaseResult = error ? `error: ${error.message}` : "ok";
-  } catch (e) {
-    supabaseResult = `exception: ${e instanceof Error ? e.message : String(e)}`;
-  }
+  // Test Supabase with a direct fetch, bypassing the SDK
+  const res = await fetch(`${url}/rest/v1/recipes?select=id&limit=1`, {
+    headers: {
+      "apikey": key,
+      "Authorization": `Bearer ${key}`,
+    },
+  });
+
+  const body = await res.text();
 
   return NextResponse.json({
-    supabase_key_length: supabaseKey.length,
-    supabase_key_end: supabaseKey.slice(-6),
-    supabase_result: supabaseResult,
+    supabase_url: url,
+    key_length: key.length,
+    key_end: key.slice(-6),
+    supabase_status: res.status,
+    supabase_response: body.slice(0, 200),
   });
 }
